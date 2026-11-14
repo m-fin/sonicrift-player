@@ -1,0 +1,14 @@
+AMBIENT.md
+MUSIC_PLAN_ALL_PROJECTS.md
+ambient
+beats
+bionic
+bionic_scores_used.json
+bionic_tracker_data.json
+frog_beat
+game
+kits
+render_jobs_20261017
+sketches
+sounds
+today_2026-10-17
