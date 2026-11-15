@@ -1,13 +1,16 @@
 import { setAudioModeAsync, createAudioPlaylist, type AudioPlaylist, type AudioPlaylistStatus } from 'expo-audio';
 import * as Haptics from 'expo-haptics';
 import { createContext, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import { Platform, Share } from 'react-native';
+import { Platform } from 'react-native';
 
-import { createQueue, cycleRepeat, playId, previousTarget, removeAt, toggleShuffle, type QueueState, type RepeatMode } from '@/domain/queue';
+import { createQueue, cycleRepeat, playId, previousTarget, removeAt, replaceOrder, toggleShuffle, type QueueState, type RepeatMode } from '@/domain/queue';
+import { audioSourceFor, canQueueNatively } from '@/player/bundled-audio';
+import { bindPlaybackKeys, type PlaybackKeys } from '@/player/keyboard';
+import { playlistSyncPlan } from '@/player/playlist-sync';
+import { shareTrackLink, type ShareResult } from '@/player/share-track';
 import sampleManifest from '@/sources/sample-manifest.json';
 import { loadCatalog, loadManifestTracks, type Catalog, type Track } from '@/sources/catalog';
 import { loadSoundCloudSnapshot } from '@/sources/soundcloud-snapshot';
-import { audioSourceFor, canQueueNatively } from '@/player/bundled-audio';
 
 const PROFILE_URL = 'https://soundcloud.com/sonicrift';
 
@@ -34,6 +37,7 @@ type PlayerContextValue = {
   current?: Track;
   widgetTrack?: Track;
   engaged: boolean;
+  streamUnplayable: boolean;
   status: AudioPlaylistStatus;
   togglePlay: () => void;
   playTrack: (id: string) => void;
@@ -43,7 +47,8 @@ type PlayerContextValue = {
   toggleShuffleMode: () => void;
   cycleRepeatMode: () => void;
   removeFromQueue: (index: number) => void;
-  shareTrack: (track: Track) => Promise<void>;
+  shareTrack: (track: Track) => Promise<ShareResult>;
+  openInSoundCloudPlayer: () => void;
 };
 
 const PlayerContext = createContext<PlayerContextValue | null>(null);
@@ -58,11 +63,15 @@ async function fetchText(url: string): Promise<string> {
 
 function metadataFor(track: Track, artworkUrl?: string) {
   return {
-    title: track.placeholder ? track.title : track.title,
+    title: track.title,
     artist: 'sonicrift',
     albumTitle: track.placeholder ? 'placeholder' : 'sonicrift',
     artworkUrl: track.artworkUrl ?? artworkUrl,
   };
+}
+
+function sameIds(left: string[], right: string[]): boolean {
+  return left.length === right.length && left.every((id, index) => id === right[index]);
 }
 
 export function PlayerProvider({ children }: { children: ReactNode }) {
@@ -74,17 +83,25 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
   const [queue, setQueue] = useState<QueueState>(createQueue([]));
   const [widgetTrack, setWidgetTrack] = useState<Track | undefined>(undefined);
   const [engaged, setEngaged] = useState(false);
+  const [streamUnplayable, setStreamUnplayable] = useState(false);
   const queueRef = useRef(queue);
   const indexRef = useRef(0);
+  const widgetRef = useRef(widgetTrack);
   const syncedOrder = useRef('');
+  const playRequest = useRef<string | null>(null);
+  const keysRef = useRef<PlaybackKeys>({
+    toggle: () => undefined,
+    seekBy: () => undefined,
+  });
 
   queueRef.current = queue;
+  widgetRef.current = widgetTrack;
 
   const tracks = catalog?.tracks ?? [];
   const byId = useMemo(() => new Map(tracks.map((track) => [track.id, track])), [tracks]);
 
   const nativeOrder = useMemo(
-    () => tracks.filter((track) => canQueueNatively(track, Platform.OS)).map((track) => track.id),
+    () => tracks.filter((track) => canQueueNatively(track)).map((track) => track.id),
     [tracks],
   );
 
@@ -110,6 +127,8 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
     };
   }, []);
 
+  useEffect(() => bindPlaybackKeys(keysRef.current), []);
+
   useEffect(() => {
     let cancelled = false;
     const sources = [
@@ -134,6 +153,7 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
       fetchText:
         Platform.OS === 'web'
           ? async () => {
+              // SoundCloud only sends a CORS header for one radio origin, so a browser cannot read the RSS feed.
               throw new Error('Browsers cannot read the SoundCloud RSS feed.');
             }
           : fetchText,
@@ -164,11 +184,12 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     setQueue((current) => {
-      const keep = current.order[indexRef.current];
-      const nextOrder = nativeOrder;
-      if (current.order.join('|') === nextOrder.join('|')) return current;
-      const index = keep ? Math.max(0, nextOrder.indexOf(keep)) : 0;
-      return { ...current, linearOrder: nextOrder, order: current.shuffle ? current.order.filter((id) => nextOrder.includes(id)) : nextOrder, index };
+      const keep = current.order[indexRef.current] ?? current.order[current.index];
+      const next = replaceOrder(current, nativeOrder, keep);
+      if (sameIds(next.order, current.order) && sameIds(next.linearOrder, current.linearOrder) && next.index === current.index) {
+        return current;
+      }
+      return next;
     });
   }, [nativeOrder]);
 
@@ -176,27 +197,43 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
     const playlist = playlistRef.current;
     if (!playlist || !playlistReady) return;
     const signature = queue.order.join('|');
-    if (syncedOrder.current === signature) return;
+    const requestedId = playRequest.current;
+    const orderChanged = syncedOrder.current !== signature;
+    if (!orderChanged && !requestedId) return;
+
     const wasPlaying = syncedOrder.current !== '' && playlist.playing;
-    syncedOrder.current = signature;
-    playlist.clear();
-    for (const id of queue.order) {
-      const track = byId.get(id);
-      if (!track) continue;
-      const source = audioSourceFor(track);
-      if (source != null) playlist.add(source);
+    const plan = playlistSyncPlan({
+      order: queue.order,
+      index: queue.index,
+      repeat: queue.repeat,
+      wasPlaying,
+      requestedId,
+    });
+
+    if (orderChanged) {
+      syncedOrder.current = signature;
+      playlist.clear();
+      for (const id of queue.order) {
+        const track = byId.get(id);
+        if (!track) continue;
+        const source = audioSourceFor(track);
+        if (source != null) playlist.add(source);
+      }
+      if (plan.index > 0) playlist.skipTo(plan.index);
+    } else if (requestedId && plan.index !== playlist.currentIndex) {
+      playlist.skipTo(plan.index);
     }
-    const index = Math.min(queue.index, Math.max(playlist.trackCount - 1, 0));
-    if (index > 0) playlist.skipTo(index);
-    const track = byId.get(queue.order[index] ?? '');
+
+    playlist.loop = plan.loop;
+    const track = byId.get(queue.order[plan.index] ?? '');
     if (track) {
       playlist.setActiveForLockScreen(true, metadataFor(track, catalog?.profile.thumbnail_url), {
         showNextTrack: true,
         showPreviousTrack: true,
       });
     }
-    playlist.loop = queue.repeat === 'off' ? 'none' : queue.repeat === 'one' ? 'single' : 'all';
-    if (wasPlaying) playlist.play();
+    if (plan.play) playlist.play();
+    if (requestedId) playRequest.current = null;
   }, [byId, catalog?.profile.thumbnail_url, playlistReady, queue.index, queue.order, queue.repeat]);
 
   useEffect(() => {
@@ -207,70 +244,84 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
 
   const displayedIndex = status.trackCount > 0 ? status.currentIndex : queue.index;
   indexRef.current = displayedIndex;
-  const current = widgetTrack ?? byId.get(queue.order[displayedIndex] ?? '');
+  const queuedTrack = byId.get(queue.order[displayedIndex] ?? '');
+  const current = widgetTrack ?? queuedTrack;
 
   useEffect(() => {
     const playlist = playlistRef.current;
-    const track = byId.get(queue.order[displayedIndex] ?? '');
-    if (!playlist || !track || widgetTrack) return;
-    playlist.updateLockScreenMetadata(metadataFor(track, catalog?.profile.thumbnail_url));
-  }, [byId, catalog?.profile.thumbnail_url, displayedIndex, queue.order, widgetTrack]);
+    if (!playlist || !queuedTrack || widgetTrack) return;
+    playlist.updateLockScreenMetadata(metadataFor(queuedTrack, catalog?.profile.thumbnail_url));
+  }, [catalog?.profile.thumbnail_url, queuedTrack, widgetTrack]);
+
+  useEffect(() => {
+    if (status.playing || status.isLoaded) setStreamUnplayable(false);
+  }, [status.isLoaded, status.playing]);
+
+  useEffect(() => {
+    if (!engaged || widgetTrack || streamUnplayable) return;
+    if (!queuedTrack || queuedTrack.playback.kind !== 'remote') return;
+    if (status.playing || status.isLoaded || status.isBuffering) return;
+    const timer = setTimeout(() => setStreamUnplayable(true), 8000);
+    return () => clearTimeout(timer);
+  }, [engaged, queuedTrack, status.isBuffering, status.isLoaded, status.playing, streamUnplayable, widgetTrack]);
 
   const value = useMemo<PlayerContextValue>(() => {
     const playlist = () => playlistRef.current;
+    const startNative = (id: string) => {
+      const player = playlist();
+      setWidgetTrack(undefined);
+      setStreamUnplayable(false);
+      const nextQueue = playId(queueRef.current, id);
+      setQueue(nextQueue);
+      playRequest.current = id;
+      const signature = nextQueue.order.join('|');
+      if (player && syncedOrder.current === signature && player.trackCount === nextQueue.order.length) {
+        if (player.currentIndex !== nextQueue.index) player.skipTo(nextQueue.index);
+        player.play();
+        playRequest.current = null;
+      }
+    };
     const stepRelease = (direction: 1 | -1) => {
       const releases = tracks.filter((track) => !track.placeholder);
       const index = releases.findIndex((track) => track.id === widgetTrack?.id);
       const nextTrack = releases[index + direction];
       if (!nextTrack) return;
-      if (!canQueueNatively(nextTrack, Platform.OS)) {
+      if (!canQueueNatively(nextTrack)) {
         setWidgetTrack(nextTrack);
         return;
       }
-      setWidgetTrack(undefined);
-      const nextQueue = playId(queueRef.current, nextTrack.id);
-      setQueue(nextQueue);
-      const player = playlist();
-      if (player && player.trackCount === nextQueue.order.length) {
-        player.skipTo(nextQueue.index);
-        player.play();
-      }
+      startNative(nextTrack.id);
     };
 
-    return {
+    const api: PlayerContextValue = {
       catalog,
       loading,
       queue,
       current,
       widgetTrack,
       engaged,
+      streamUnplayable,
       status,
       togglePlay: () => {
         const player = playlist();
-        if (!player) return;
+        if (!player || widgetTrack) return;
         setEngaged(true);
-        if (widgetTrack) return;
+        setStreamUnplayable(false);
         if (player.playing) player.pause();
         else player.play();
         void Haptics.selectionAsync().catch(() => undefined);
       },
       playTrack: (id: string) => {
         const track = byId.get(id);
-        const player = playlist();
-        if (!track || !player) return;
+        if (!track) return;
         setEngaged(true);
-        if (!canQueueNatively(track, Platform.OS)) {
-          player.pause();
+        if (!canQueueNatively(track)) {
+          playlist()?.pause();
           setWidgetTrack(track);
+          playRequest.current = null;
           return;
         }
-        setWidgetTrack(undefined);
-        const nextQueue = playId(queueRef.current, id);
-        setQueue(nextQueue);
-        if (player.trackCount === nextQueue.order.length) {
-          player.skipTo(nextQueue.index);
-          player.play();
-        }
+        startNative(id);
         void Haptics.selectionAsync().catch(() => undefined);
       },
       next: () => {
@@ -300,8 +351,10 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
       },
       seek: (seconds: number) => {
         const player = playlist();
-        if (!player || widgetTrack) return;
-        void player.seekTo(seconds);
+        if (!player || widgetTrack || !Number.isFinite(seconds)) return;
+        const duration = player.duration || 0;
+        const next = Math.max(0, duration > 0 ? Math.min(seconds, duration) : seconds);
+        void player.seekTo(next);
       },
       toggleShuffleMode: () => {
         setQueue((currentQueue) => toggleShuffle({ ...currentQueue, index: indexRef.current }));
@@ -313,16 +366,19 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
       removeFromQueue: (index: number) => {
         setQueue((currentQueue) => removeAt({ ...currentQueue, index: indexRef.current }, index));
       },
-      shareTrack: async (track: Track) => {
-        const message = `${track.title} — sonicrift`;
-        await Share.share(
-          Platform.OS === 'ios'
-            ? { title: track.title, message, url: track.permalink }
-            : { title: track.title, message: `${message}\n${track.permalink}` },
-        );
+      shareTrack: (track: Track) => shareTrackLink(track),
+      openInSoundCloudPlayer: () => {
+        const track = widgetRef.current ?? byId.get(queueRef.current.order[indexRef.current] ?? '');
+        if (!track || track.placeholder) return;
+        playlist()?.pause();
+        setWidgetTrack(track);
+        setStreamUnplayable(false);
       },
     };
-  }, [byId, catalog, current, engaged, loading, queue, status, tracks, widgetTrack]);
+    keysRef.current.toggle = () => api.togglePlay();
+    keysRef.current.seekBy = (seconds: number) => api.seek((playlist()?.currentTime ?? 0) + seconds);
+    return api;
+  }, [byId, catalog, current, engaged, loading, queue, status, streamUnplayable, tracks, widgetTrack]);
 
   return <PlayerContext.Provider value={value}>{children}</PlayerContext.Provider>;
 }

@@ -2,11 +2,12 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 
 import { isThirdPartyAudio } from '../domain/policy';
-import { loadSoundCloudSnapshot } from './soundcloud-snapshot';
+import { SOUNDCLOUD_SNAPSHOT_CAPTURED_AT, loadSoundCloudSnapshot } from './soundcloud-snapshot';
 
 test('snapshot keeps sonicrift originals and no third-party audio', () => {
   const { tracks, profile } = loadSoundCloudSnapshot();
   assert.equal(profile.author_name, 'sonicrift');
+  assert.equal(SOUNDCLOUD_SNAPSHOT_CAPTURED_AT, '2026-11-14');
   assert.deepEqual(
     tracks.map((track) => track.title),
     ['Bionic Body', 'Machine Sleep', 'Space Drift'],

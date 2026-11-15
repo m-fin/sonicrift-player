@@ -60,10 +60,6 @@ const styles = StyleSheet.create({
     borderRadius: 14,
     backgroundColor: brand.bgCard,
   },
-  artFallback: {
-    borderWidth: 1,
-    borderColor: brand.line,
-  },
   copy: {
     flex: 1,
     gap: 3,

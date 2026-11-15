@@ -1,9 +1,10 @@
 import { Image } from 'expo-image';
 import { router } from 'expo-router';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import { brand, font, formatDuration } from '@/constants/theme';
 import { usePlayer } from '@/player/PlayerProvider';
+import { SOUNDCLOUD_SNAPSHOT_CAPTURED_AT } from '@/sources/soundcloud-snapshot';
 import type { Track } from '@/sources/catalog';
 import { Screen } from '@/ui/Screen';
 import { TrackRow } from '@/ui/TrackRow';
@@ -33,8 +34,19 @@ export default function HomeScreen() {
 
         {loading ? <Text style={styles.notice}>tuning the rift…</Text> : null}
         {usingSnapshot ? (
-          <Text style={styles.notice}>browser preview uses the public snapshot. iphone plays the live feed.</Text>
+          <Text style={styles.notice}>
+            {Platform.OS === 'web'
+              ? `The live SoundCloud feed is blocked in the browser. Playing the public snapshot from ${SOUNDCLOUD_SNAPSHOT_CAPTURED_AT}.`
+              : `The live SoundCloud feed did not load. Playing the public snapshot from ${SOUNDCLOUD_SNAPSHOT_CAPTURED_AT}.`}
+          </Text>
         ) : null}
+        {(catalog?.errors ?? [])
+          .filter((error) => error.sourceId !== 'soundcloud')
+          .map((error) => (
+            <Text key={error.sourceId} style={styles.notice}>
+              {error.message}
+            </Text>
+          ))}
 
         <Text style={styles.section}>new drop</Text>
         {featured ? (
@@ -51,7 +63,9 @@ export default function HomeScreen() {
             <View style={styles.dropShade} />
             <View style={styles.dropCopy}>
               <Text style={styles.pill}>new drop</Text>
-              <Text style={styles.dropTitle}>{featured.title}</Text>
+              <Text style={styles.dropTitle} numberOfLines={2}>
+                {featured.title}
+              </Text>
               <Text style={styles.dropMeta}>sonicrift  ·  {formatDuration(featured.durationMs)}</Text>
             </View>
           </Pressable>

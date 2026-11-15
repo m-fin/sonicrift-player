@@ -1,5 +1,7 @@
 # TestFlight
 
+Version 1 is meant to be run on the web and in Expo Go. TestFlight is later.
+
 Apple Developer Program enrollment for this project is an **Individual** account and it is **pending**. Nothing in this repo can be uploaded to TestFlight until that enrollment is active. Do not commit certificates, `.p8` keys, `.p12` files, provisioning profiles, or Expo tokens.
 
 ## Identifiers

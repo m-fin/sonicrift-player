@@ -4,11 +4,19 @@ import { WebView } from 'react-native-webview';
 import { brand } from '@/constants/theme';
 import { widgetSrc } from '@/ui/widget-src';
 
-export function SoundCloudWidget({ pageUrl, height = 420 }: { pageUrl: string; height?: number }) {
+export function SoundCloudWidget({
+  pageUrl,
+  height = 420,
+  autoplay = false,
+}: {
+  pageUrl: string;
+  height?: number;
+  autoplay?: boolean;
+}) {
   return (
     <View style={[styles.frame, { height }]}>
       <WebView
-        source={{ uri: widgetSrc(pageUrl) }}
+        source={{ uri: widgetSrc(pageUrl, autoplay) }}
         style={styles.web}
         allowsInlineMediaPlayback
         mediaPlaybackRequiresUserAction={false}

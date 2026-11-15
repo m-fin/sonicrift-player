@@ -2,7 +2,7 @@ import { Image } from 'expo-image';
 import * as WebBrowser from 'expo-web-browser';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
-import { artistLinks, artistParagraphs } from '@/content/artist';
+import { artistLinks, artistParagraphs, musicRights } from '@/content/artist';
 import { brand, font } from '@/constants/theme';
 import { usePlayer } from '@/player/PlayerProvider';
 import { Screen } from '@/ui/Screen';
@@ -45,6 +45,7 @@ export default function ArtistScreen() {
         </View>
         <Text style={styles.section}>on soundcloud</Text>
         {embed ? <SoundCloudWidget pageUrl={embed.permalink} height={380} /> : null}
+        <Text style={styles.rights}>{musicRights}</Text>
       </ScrollView>
     </Screen>
   );
@@ -114,5 +115,12 @@ const styles = StyleSheet.create({
     color: brand.text,
     fontFamily: font.displayBold,
     fontSize: 22,
+  },
+  rights: {
+    color: brand.dim,
+    fontFamily: font.body,
+    fontSize: 13,
+    lineHeight: 18,
+    marginTop: 8,
   },
 });

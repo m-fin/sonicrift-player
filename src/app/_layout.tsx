@@ -5,11 +5,12 @@ import { Stack } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
 import { useEffect } from 'react';
+import { StyleSheet, View } from 'react-native';
 
 import { brand } from '@/constants/theme';
 import { PlayerProvider } from '@/player/PlayerProvider';
 
-import './global-style';
+import '@/styles/global-style';
 
 SplashScreen.preventAutoHideAsync();
 
@@ -32,17 +33,35 @@ export default function RootLayout() {
   return (
     <PlayerProvider>
       <StatusBar style="light" />
-      <Stack
-        screenOptions={{
-          headerShown: false,
-          contentStyle: { backgroundColor: brand.bg },
-        }}>
-        <Stack.Screen name="(tabs)" />
-        <Stack.Screen
-          name="now-playing"
-          options={{ presentation: 'modal', animation: 'slide_from_bottom' }}
-        />
-      </Stack>
+      <View style={styles.frame}>
+        <View style={styles.column}>
+          <Stack
+            screenOptions={{
+              headerShown: false,
+              contentStyle: { backgroundColor: brand.bg },
+            }}>
+            <Stack.Screen name="(tabs)" />
+            <Stack.Screen
+              name="now-playing"
+              options={{ presentation: 'modal', animation: 'slide_from_bottom' }}
+            />
+          </Stack>
+        </View>
+      </View>
     </PlayerProvider>
   );
 }
+
+const styles = StyleSheet.create({
+  frame: {
+    flex: 1,
+    alignItems: 'center',
+    backgroundColor: brand.bg,
+  },
+  column: {
+    flex: 1,
+    width: '100%',
+    maxWidth: 480,
+    backgroundColor: brand.bg,
+  },
+});

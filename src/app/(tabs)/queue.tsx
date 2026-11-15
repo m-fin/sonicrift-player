@@ -1,5 +1,5 @@
 import { router } from 'expo-router';
-import { Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import { brand, font } from '@/constants/theme';
 import { usePlayer } from '@/player/PlayerProvider';
@@ -15,9 +15,6 @@ export default function QueueScreen() {
       <ScrollView contentContainerStyle={styles.content}>
         <Text style={styles.kicker}>up next</Text>
         <Text style={styles.title}>queue</Text>
-        {Platform.OS === 'web' ? (
-          <Text style={styles.note}>this browser queues the bundled tones. iphone queues the public feed.</Text>
-        ) : null}
         <View style={styles.modes}>
           <Pressable
             accessibilityRole="button"
@@ -81,13 +78,6 @@ const styles = StyleSheet.create({
     color: brand.magenta,
     fontFamily: font.bodyBold,
     fontSize: 13,
-  },
-  note: {
-    color: brand.dim,
-    fontFamily: font.body,
-    fontSize: 13,
-    lineHeight: 18,
-    marginBottom: 12,
   },
   title: {
     color: brand.text,

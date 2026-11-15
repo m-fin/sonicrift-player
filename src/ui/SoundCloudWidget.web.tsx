@@ -4,12 +4,20 @@ import { StyleSheet, View } from 'react-native';
 import { brand } from '@/constants/theme';
 import { widgetSrc } from '@/ui/widget-src';
 
-export function SoundCloudWidget({ pageUrl, height = 420 }: { pageUrl: string; height?: number }) {
+export function SoundCloudWidget({
+  pageUrl,
+  height = 420,
+  autoplay = false,
+}: {
+  pageUrl: string;
+  height?: number;
+  autoplay?: boolean;
+}) {
   return (
     <View style={[styles.frame, { height }]}>
       {createElement('iframe', {
         title: 'sonicrift on SoundCloud',
-        src: widgetSrc(pageUrl),
+        src: widgetSrc(pageUrl, autoplay),
         width: '100%',
         height: '100%',
         allow: 'autoplay; encrypted-media',

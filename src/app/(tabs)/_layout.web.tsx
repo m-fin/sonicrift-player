@@ -1,7 +1,11 @@
 import { Tabs } from 'expo-router';
-import { Text } from 'react-native';
+import { Text, type ColorValue } from 'react-native';
 
 import { brand, font } from '@/constants/theme';
+
+function TabGlyph({ color, glyph }: { color: ColorValue; glyph: string }) {
+  return <Text style={{ color, fontFamily: font.bodyBold, fontSize: 16 }}>{glyph}</Text>;
+}
 
 export default function WebTabsLayout() {
   return (
@@ -15,15 +19,32 @@ export default function WebTabsLayout() {
           borderTopColor: brand.lineSoft,
           height: 64,
         },
-        tabBarIcon: ({ color }) => <Text style={{ color, fontSize: 16 }}>•</Text>,
         tabBarLabelStyle: {
           fontFamily: font.bodyBold,
           fontSize: 13,
         },
       }}>
-      <Tabs.Screen name="index" options={{ title: 'home' }} />
-      <Tabs.Screen name="queue" options={{ title: 'queue' }} />
-      <Tabs.Screen name="artist" options={{ title: 'artist' }} />
+      <Tabs.Screen
+        name="index"
+        options={{
+          title: 'home',
+          tabBarIcon: ({ color }) => <TabGlyph color={color} glyph="~" />,
+        }}
+      />
+      <Tabs.Screen
+        name="queue"
+        options={{
+          title: 'queue',
+          tabBarIcon: ({ color }) => <TabGlyph color={color} glyph="≡" />,
+        }}
+      />
+      <Tabs.Screen
+        name="artist"
+        options={{
+          title: 'artist',
+          tabBarIcon: ({ color }) => <TabGlyph color={color} glyph="◦" />,
+        }}
+      />
     </Tabs>
   );
 }

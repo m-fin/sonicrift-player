@@ -8,6 +8,8 @@ export type SoundCloudFallback = {
   profile: OEmbedPayload;
 };
 
+export const SOUNDCLOUD_SNAPSHOT_CAPTURED_AT = snapshot.capturedAt;
+
 export function loadSoundCloudSnapshot(): SoundCloudFallback {
   const tracks = snapshot.tracks
     .filter((track) => !isThirdPartyAudio(track))

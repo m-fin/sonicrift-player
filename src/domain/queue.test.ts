@@ -8,6 +8,7 @@ import {
   playId,
   previousTarget,
   removeAt,
+  replaceOrder,
   toggleShuffle,
 } from './queue';
 
@@ -55,6 +56,20 @@ test('shuffle keeps the current track first and can be undone', () => {
   assert.equal(restored.shuffle, false);
   assert.deepEqual(restored.order, ['a', 'b', 'c']);
   assert.equal(restored.index, 1);
+});
+
+test('replaceOrder keeps a shuffled queue and appends new tracks', () => {
+  const state = {
+    ...createQueue(['a', 'b', 'c']),
+    shuffle: true,
+    order: ['b', 'c', 'a'],
+    index: 1,
+  };
+  const next = replaceOrder(state, ['a', 'c', 'd', 'b'], 'c');
+  assert.deepEqual(next.linearOrder, ['a', 'c', 'd', 'b']);
+  assert.deepEqual(next.order, ['b', 'c', 'a', 'd']);
+  assert.equal(next.index, 1);
+  assert.equal(next.shuffle, true);
 });
 
 test('playId moves the index and removeAt drops a track', () => {

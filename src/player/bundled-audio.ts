@@ -11,8 +11,11 @@ export function audioSourceFor(track: Track): number | string | null {
   return null;
 }
 
-export function canQueueNatively(track: Track, platform: string): boolean {
+/**
+ * Bundled tones and public http(s) streams play in Expo Go and on the web.
+ * Widget tracks stay in the official SoundCloud player.
+ */
+export function canQueueNatively(track: Track): boolean {
   if (track.playback.kind === 'bundled') return audioSourceFor(track) != null;
-  if (track.playback.kind === 'remote') return platform !== 'web';
-  return false;
+  return track.playback.kind === 'remote';
 }
