@@ -5,6 +5,7 @@ import { Platform } from 'react-native';
 
 import { createQueue, cycleRepeat, playId, previousTarget, removeAt, replaceOrder, toggleShuffle, type QueueState, type RepeatMode } from '@/domain/queue';
 import { audioSourceFor, canQueueNatively } from '@/player/bundled-audio';
+import { addPlaylistSources, nowPlayingMetadata } from '@/player/native-source';
 import { bindPlaybackKeys, type PlaybackKeys } from '@/player/keyboard';
 import { playlistSyncPlan } from '@/player/playlist-sync';
 import { shareTrackLink, type ShareResult } from '@/player/share-track';
@@ -59,15 +60,6 @@ async function fetchText(url: string): Promise<string> {
     throw new Error(`SoundCloud request failed (${response.status}).`);
   }
   return response.text();
-}
-
-function metadataFor(track: Track, artworkUrl?: string) {
-  return {
-    title: track.title,
-    artist: 'sonicrift',
-    albumTitle: track.placeholder ? 'placeholder' : 'sonicrift',
-    artworkUrl: track.artworkUrl ?? artworkUrl,
-  };
 }
 
 function sameIds(left: string[], right: string[]): boolean {
@@ -213,13 +205,14 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
     if (orderChanged) {
       syncedOrder.current = signature;
       playlist.clear();
-      for (const id of queue.order) {
+      const sources = queue.order.flatMap((id) => {
         const track = byId.get(id);
-        if (!track) continue;
-        const source = audioSourceFor(track);
-        if (source != null) playlist.add(source);
-      }
-      if (plan.index > 0) playlist.skipTo(plan.index);
+        const source = track ? audioSourceFor(track) : null;
+        return source ? [source] : [];
+      });
+      const added = addPlaylistSources((source) => playlist.add(source), sources);
+      const index = Math.min(plan.index, Math.max(added - 1, 0));
+      if (added > 0 && index > 0) playlist.skipTo(index);
     } else if (requestedId && plan.index !== playlist.currentIndex) {
       playlist.skipTo(plan.index);
     }
@@ -227,10 +220,23 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
     playlist.loop = plan.loop;
     const track = byId.get(queue.order[plan.index] ?? '');
     if (track) {
-      playlist.setActiveForLockScreen(true, metadataFor(track, catalog?.profile.thumbnail_url), {
-        showNextTrack: true,
-        showPreviousTrack: true,
-      });
+      try {
+        playlist.setActiveForLockScreen(
+          true,
+          nowPlayingMetadata({
+            title: track.title,
+            placeholder: track.placeholder,
+            artworkUrl: track.artworkUrl,
+            fallbackArtworkUrl: catalog?.profile.thumbnail_url,
+          }),
+          {
+            showNextTrack: true,
+            showPreviousTrack: true,
+          },
+        );
+      } catch {
+        // Invalid now-playing metadata is a native TypeError. Keep playback alive.
+      }
     }
     if (plan.play) playlist.play();
     if (requestedId) playRequest.current = null;
@@ -250,7 +256,18 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     const playlist = playlistRef.current;
     if (!playlist || !queuedTrack || widgetTrack) return;
-    playlist.updateLockScreenMetadata(metadataFor(queuedTrack, catalog?.profile.thumbnail_url));
+    try {
+      playlist.updateLockScreenMetadata(
+        nowPlayingMetadata({
+          title: queuedTrack.title,
+          placeholder: queuedTrack.placeholder,
+          artworkUrl: queuedTrack.artworkUrl,
+          fallbackArtworkUrl: catalog?.profile.thumbnail_url,
+        }),
+      );
+    } catch {
+      // Invalid now-playing metadata is a native TypeError. Keep playback alive.
+    }
   }, [catalog?.profile.thumbnail_url, queuedTrack, widgetTrack]);
 
   useEffect(() => {
