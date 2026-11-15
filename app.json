@@ -1,0 +1,63 @@
+{
+  "expo": {
+    "name": "sonicrift",
+    "slug": "sonicrift",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/images/icon.png",
+    "scheme": "sonicrift",
+    "userInterfaceStyle": "dark",
+    "backgroundColor": "#07060D",
+    "ios": {
+      "bundleIdentifier": "app.sonicrift.player",
+      "icon": "./assets/images/icon.png",
+      "supportsTablet": false,
+      "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false,
+        "UIBackgroundModes": ["audio"]
+      }
+    },
+    "android": {
+      "package": "app.sonicrift.player",
+      "adaptiveIcon": {
+        "backgroundColor": "#07060D",
+        "foregroundImage": "./assets/images/android-icon-foreground.png",
+        "backgroundImage": "./assets/images/android-icon-background.png",
+        "monochromeImage": "./assets/images/android-icon-monochrome.png"
+      },
+      "predictiveBackGestureEnabled": false
+    },
+    "web": {
+      "output": "single",
+      "favicon": "./assets/images/favicon.png",
+      "backgroundColor": "#07060D"
+    },
+    "plugins": [
+      "expo-router",
+      [
+        "expo-splash-screen",
+        {
+          "backgroundColor": "#07060D",
+          "image": "./assets/images/splash-icon.png",
+          "imageWidth": 180
+        }
+      ],
+      [
+        "expo-audio",
+        {
+          "microphonePermission": false,
+          "recordAudioAndroid": false,
+          "enableBackgroundRecording": false,
+          "enableBackgroundPlayback": true
+        }
+      ]
+    ],
+    "experiments": {
+      "typedRoutes": true,
+      "reactCompiler": true
+    },
+    "extra": {
+      "soundcloudProfileUrl": "https://soundcloud.com/sonicrift"
+    }
+  }
+}

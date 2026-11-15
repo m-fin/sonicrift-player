@@ -1,0 +1,30 @@
+{
+  "schema": "sonicrift.tracks/v1",
+  "note": "SAMPLE MANIFEST. Every entry is a placeholder for UI and offline playback. These tones were synthesized for this app. They are not sonicrift releases and they are not third-party recordings. Replace audioUrl with files you host, or delete the entries, when you publish a real manifest.",
+  "tracks": [
+    {
+      "id": "placeholder-rift-tone",
+      "title": "PLACEHOLDER — rift tone",
+      "artist": "sonicrift",
+      "placeholder": true,
+      "audioUrl": "bundled:placeholder-rift-tone",
+      "permalink": "https://soundcloud.com/sonicrift",
+      "releasedAt": "2026-01-01T00:00:00.000Z",
+      "durationMs": 8000,
+      "newDrop": false,
+      "note": "PLACEHOLDER. Original synthesized tone bundled with the app. Not a sonicrift release."
+    },
+    {
+      "id": "placeholder-neon-pulse",
+      "title": "PLACEHOLDER — neon pulse",
+      "artist": "sonicrift",
+      "placeholder": true,
+      "audioUrl": "bundled:placeholder-neon-pulse",
+      "permalink": "https://soundcloud.com/sonicrift",
+      "releasedAt": "2026-01-02T00:00:00.000Z",
+      "durationMs": 8000,
+      "newDrop": false,
+      "note": "PLACEHOLDER. Original synthesized tone bundled with the app. Not a sonicrift release."
+    }
+  ]
+}
