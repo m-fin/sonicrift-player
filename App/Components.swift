@@ -42,7 +42,12 @@ struct CoverArt: View {
             (Color(red: 0.36, green: 0.22, blue: 0.10), Color(red: 0.10, green: 0.08, blue: 0.07)),
             (Color(red: 0.62, green: 0.40, blue: 0.16), Color(red: 0.18, green: 0.10, blue: 0.06)),
         ]
-        let index = abs(title.hashValue) % palettes.count
+        // abs(Int.min) traps. Fold the title into an unsigned hash instead.
+        var hash: UInt32 = 2_166_136_261
+        for byte in title.utf8 {
+            hash = (hash ^ UInt32(byte)) &* 16_777_619
+        }
+        let index = Int(hash % UInt32(palettes.count))
         let pair = palettes[index]
         return LinearGradient(colors: [pair.0, pair.1], startPoint: .topLeading, endPoint: .bottomTrailing)
     }

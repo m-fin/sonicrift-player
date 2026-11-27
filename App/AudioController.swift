@@ -28,6 +28,7 @@ final class GenerativeRenderBox: @unchecked Sendable {
     }
 
     func render(frameCount: Int, sampleRate: Double, left: UnsafeMutablePointer<Float>, right: UnsafeMutablePointer<Float>) {
+        guard frameCount > 0 else { return }
         lock.lock()
         defer { lock.unlock() }
         if leftScratch.count < frameCount {
@@ -42,7 +43,8 @@ final class GenerativeRenderBox: @unchecked Sendable {
             right: &rightScratch,
             bass: &bassScratch
         )
-        for index in 0..<frameCount {
+        let count = min(frameCount, leftScratch.count, rightScratch.count)
+        for index in 0..<count {
             left[index] = leftScratch[index]
             right[index] = rightScratch[index]
         }
@@ -53,16 +55,17 @@ final class GenerativeRenderBox: @unchecked Sendable {
 final class AudioController: ObservableObject {
     weak var model: PlayerModel?
     private let player = AVPlayer()
-    private let engine = AVAudioEngine()
+    /// Created only after the audio session is active. Querying it earlier reads a 0 Hz output format and Core Audio throws.
+    private var engine: AVAudioEngine?
     private let renderBox: GenerativeRenderBox
     private var sourceNode: AVAudioSourceNode?
-    private var engineReady = false
+    private var gate = AudioEngineGate()
+    private var renderRate: Double = 48_000
     private var timeToken: Any?
     private var observers: [NSObjectProtocol] = []
     private var commandsInstalled = false
     private var generativeAnchor: Date?
     private var generativeElapsed: TimeInterval = 0
-    private let sampleRate: Double = 44_100
 
     init() {
         renderBox = GenerativeRenderBox(parameters: GenerativeParameters(preset: .deepFocus))
@@ -74,12 +77,16 @@ final class AudioController: ObservableObject {
     }
 
     func play(track: Track, url: URL) {
-        pauseGenerativeEngine()
+        guard CatalogPlayability.canStart(url) else {
+            model?.statusMessage = "That track has no audio file on this iPhone yet."
+            return
+        }
+        stopGeneratorIfRunning()
         generativeAnchor = nil
         generativeElapsed = 0
+        guard activateSession() else { return }
         let item = AVPlayerItem(url: url)
         player.replaceCurrentItem(with: item)
-        configureSession()
         player.play()
         publishCatalog(track: track, playing: true)
     }
@@ -88,12 +95,21 @@ final class AudioController: ObservableObject {
         player.pause()
         player.replaceCurrentItem(with: nil)
         renderBox.update(parameters)
-        configureSession()
+        guard activateSession() else { return }
+        let session = AVAudioSession.sharedInstance()
+        let plan = AudioFormatPlan.make(
+            hardwareSampleRate: session.sampleRate,
+            hardwareChannels: Int(session.outputNumberOfChannels)
+        )
+        renderRate = plan.sampleRate
         do {
-            try ensureEngine()
+            try ensureEngine(plan: plan)
+            guard let engine else { throw PlaybackStartError.invalidFormat }
             if !engine.isRunning {
                 try engine.start()
             }
+            let decision = gate.applying(.playGenerative)
+            gate = decision.gate
             generativeAnchor = Date()
             publishGenerative(parameters: parameters, playing: true)
         } catch {
@@ -111,7 +127,7 @@ final class AudioController: ObservableObject {
     func pause() {
         if model?.session.route == .generative {
             captureGenerativeElapsed()
-            engine.pause()
+            pauseEngineIfSafe()
             if let parameters = model?.generative {
                 publishGenerative(parameters: parameters, playing: false)
             }
@@ -124,11 +140,12 @@ final class AudioController: ObservableObject {
     }
 
     func resume() {
-        configureSession()
+        guard activateSession() else { return }
         if model?.session.route == .generative {
             do {
-                try ensureEngine()
-                if !engine.isRunning { try engine.start() }
+                if let engine, gate.mayTouchEngine, !engine.isRunning {
+                    try engine.start()
+                }
                 generativeAnchor = Date()
                 if let parameters = model?.generative {
                     publishGenerative(parameters: parameters, playing: true)
@@ -156,7 +173,7 @@ final class AudioController: ObservableObject {
     func stopAll() {
         player.pause()
         player.replaceCurrentItem(with: nil)
-        pauseGenerativeEngine()
+        pauseEngineIfSafe()
         MPNowPlayingInfoCenter.default().nowPlayingInfo = nil
     }
 
@@ -164,88 +181,114 @@ final class AudioController: ObservableObject {
         renderBox.currentEnergy()
     }
 
-    private func pauseGenerativeEngine() {
-        if engine.isRunning {
-            engine.pause()
+    private func stopGeneratorIfRunning() {
+        let decision = gate.applying(.playCatalog)
+        gate = decision.gate
+        if decision.touchEngine {
+            engine?.pause()
         }
     }
 
-    private func captureGenerativeElapsed() {
-        if let generativeAnchor {
-            generativeElapsed += Date().timeIntervalSince(generativeAnchor)
-            self.generativeAnchor = nil
+    private func pauseEngineIfSafe() {
+        let decision = gate.applying(.pauseEngine)
+        gate = decision.gate
+        if decision.touchEngine {
+            engine?.pause()
         }
     }
 
-    private func currentGenerativeElapsed() -> TimeInterval {
-        var elapsed = generativeElapsed
-        if let generativeAnchor {
-            elapsed += Date().timeIntervalSince(generativeAnchor)
-        }
-        return elapsed
-    }
-
-    private func configureSession() {
+    @discardableResult
+    private func activateSession() -> Bool {
         let session = AVAudioSession.sharedInstance()
         do {
             try session.setCategory(.playback, mode: .default, options: [])
+            try? session.setPreferredSampleRate(48_000)
             try session.setActive(true)
+            let decision = gate.applying(.activateSession)
+            gate = decision.gate
+            return true
         } catch {
             model?.statusMessage = "Audio couldn't take the playback session."
+            return false
         }
     }
 
-    private func ensureEngine() throws {
-        if engineReady { return }
-        guard let format = AVAudioFormat(standardFormatWithSampleRate: sampleRate, channels: 2) else {
-            throw URLError(.cannotDecodeContentData)
+    private func ensureEngine(plan: AudioFormatPlan) throws {
+        if sourceNode != nil, engine != nil { return }
+        let channelCount = AVAudioChannelCount(max(1, plan.channelCount))
+        guard let format = AVAudioFormat(standardFormatWithSampleRate: plan.sampleRate, channels: channelCount) else {
+            throw PlaybackStartError.invalidFormat
         }
+        let audioEngine = engine ?? AVAudioEngine()
         let box = renderBox
-        let rate = sampleRate
+        let rate = plan.sampleRate
         let node = AVAudioSourceNode(format: format) { _, _, frameCount, audioBufferList -> OSStatus in
             let buffers = UnsafeMutableAudioBufferListPointer(audioBufferList)
-            guard let first = buffers.first, let data = first.mData else { return noErr }
+            let requested = Int(frameCount)
+            guard requested > 0, let first = buffers.first, let data = first.mData else { return noErr }
             if buffers.count >= 2, let rightData = buffers[1].mData {
+                let frames = min(
+                    AudioBufferLayout.writableFrames(requestedFrames: requested, channelCount: 1, byteCount: Int(first.mDataByteSize)),
+                    AudioBufferLayout.writableFrames(requestedFrames: requested, channelCount: 1, byteCount: Int(buffers[1].mDataByteSize))
+                )
+                guard frames > 0 else { return noErr }
                 box.render(
-                    frameCount: Int(frameCount),
+                    frameCount: frames,
                     sampleRate: rate,
                     left: data.assumingMemoryBound(to: Float.self),
                     right: rightData.assumingMemoryBound(to: Float.self)
                 )
-            } else {
-                let interleaved = data.assumingMemoryBound(to: Float.self)
-                let frames = Int(frameCount)
-                var left = [Float](repeating: 0, count: frames)
-                var right = [Float](repeating: 0, count: frames)
-                left.withUnsafeMutableBufferPointer { leftBuffer in
-                    right.withUnsafeMutableBufferPointer { rightBuffer in
-                        guard let leftPointer = leftBuffer.baseAddress, let rightPointer = rightBuffer.baseAddress else { return }
-                        box.render(frameCount: frames, sampleRate: rate, left: leftPointer, right: rightPointer)
-                    }
+                return noErr
+            }
+            let channels = max(1, Int(first.mNumberChannels))
+            let frames = AudioBufferLayout.writableFrames(
+                requestedFrames: requested,
+                channelCount: channels,
+                byteCount: Int(first.mDataByteSize)
+            )
+            guard frames > 0 else { return noErr }
+            var left = [Float](repeating: 0, count: frames)
+            var right = [Float](repeating: 0, count: frames)
+            left.withUnsafeMutableBufferPointer { leftBuffer in
+                right.withUnsafeMutableBufferPointer { rightBuffer in
+                    guard let leftPointer = leftBuffer.baseAddress, let rightPointer = rightBuffer.baseAddress else { return }
+                    box.render(frameCount: frames, sampleRate: rate, left: leftPointer, right: rightPointer)
                 }
+            }
+            let samples = data.assumingMemoryBound(to: Float.self)
+            if channels == 1 {
                 for index in 0..<frames {
-                    interleaved[index * 2] = left[index]
-                    interleaved[index * 2 + 1] = right[index]
+                    samples[index] = (left[index] + right[index]) * 0.5
+                }
+            } else {
+                for index in 0..<frames {
+                    let base = index * channels
+                    samples[base] = left[index]
+                    if channels > 1 {
+                        samples[base + 1] = right[index]
+                    }
                 }
             }
             return noErr
         }
-        engine.attach(node)
-        engine.connect(node, to: engine.mainMixerNode, format: format)
-        engine.prepare()
+        audioEngine.attach(node)
+        audioEngine.connect(node, to: audioEngine.mainMixerNode, format: format)
+        audioEngine.prepare()
+        engine = audioEngine
         sourceNode = node
-        engineReady = true
     }
 
     private func observePlayer() {
         let interval = CMTime(seconds: 0.25, preferredTimescale: 600)
         timeToken = player.addPeriodicTimeObserver(forInterval: interval, queue: .main) { [weak self] time in
             guard let self else { return }
+            let seconds = time.seconds
             Task { @MainActor in
                 guard self.model?.session.route == .catalog else { return }
                 let duration = self.player.currentItem?.duration.seconds ?? 0
                 let safeDuration = duration.isFinite ? duration : 0
-                self.model?.updateCatalogClock(position: time.seconds, duration: safeDuration)
+                let safePosition = seconds.isFinite ? seconds : 0
+                self.model?.updateCatalogClock(position: safePosition, duration: safeDuration)
             }
         }
         let ended = NotificationCenter.default.addObserver(
@@ -343,26 +386,48 @@ final class AudioController: ObservableObject {
     }
 
     private func artwork(title: String) -> MPMediaItemArtwork {
-        MPMediaItemArtwork(boundsSize: CGSize(width: 600, height: 600)) { size in
+        let bounds = CGSize(width: 600, height: 600)
+        return MPMediaItemArtwork(boundsSize: bounds) { requested in
+            let safe = ArtworkPixelSize.sanitize(width: requested.width, height: requested.height)
+            let size = CGSize(width: safe.width, height: safe.height)
             let renderer = UIGraphicsImageRenderer(size: size)
             return renderer.image { context in
                 UIColor(red: 0.09, green: 0.07, blue: 0.06, alpha: 1).setFill()
                 context.fill(CGRect(origin: .zero, size: size))
                 UIColor(red: 0.91, green: 0.65, blue: 0.29, alpha: 1).setFill()
-                let width = size.width * 0.08
+                let barWidth = size.width * 0.08
                 let heights: [CGFloat] = [0.34, 0.52, 0.70, 0.48, 0.30]
                 let gap = size.width * 0.035
-                let total = CGFloat(heights.count) * width + CGFloat(heights.count - 1) * gap
+                let total = CGFloat(heights.count) * barWidth + CGFloat(heights.count - 1) * gap
                 var x = (size.width - total) / 2
                 for height in heights {
                     let bar = size.height * height
-                    let rect = CGRect(x: x, y: (size.height - bar) / 2, width: width, height: bar)
-                    context.cgContext.addPath(UIBezierPath(roundedRect: rect, cornerRadius: width / 3).cgPath)
+                    let rect = CGRect(x: x, y: (size.height - bar) / 2, width: max(barWidth, 1), height: max(bar, 1))
+                    context.cgContext.addPath(UIBezierPath(roundedRect: rect, cornerRadius: barWidth / 3).cgPath)
                     context.cgContext.fillPath()
-                    x += width + gap
+                    x += barWidth + gap
                 }
                 _ = title
             }
         }
     }
+
+    private func captureGenerativeElapsed() {
+        if let generativeAnchor {
+            generativeElapsed += Date().timeIntervalSince(generativeAnchor)
+            self.generativeAnchor = nil
+        }
+    }
+
+    private func currentGenerativeElapsed() -> TimeInterval {
+        var elapsed = generativeElapsed
+        if let generativeAnchor {
+            elapsed += Date().timeIntervalSince(generativeAnchor)
+        }
+        return elapsed
+    }
+}
+
+private enum PlaybackStartError: Error {
+    case invalidFormat
 }

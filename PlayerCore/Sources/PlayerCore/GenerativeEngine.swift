@@ -306,17 +306,23 @@ public struct GenerativeEngine {
         right: inout [Float],
         bass: inout [Float]
     ) -> VisualEnergy {
-        precondition(left.count >= frameCount && right.count >= frameCount && bass.count >= frameCount)
+        let count = min(frameCount, left.count, right.count, bass.count)
+        guard count > 0 else { return .silent }
         return left.withUnsafeMutableBufferPointer { leftBuffer in
             right.withUnsafeMutableBufferPointer { rightBuffer in
                 bass.withUnsafeMutableBufferPointer { bassBuffer in
-                    render(
-                        frameCount: frameCount,
+                    guard let leftPointer = leftBuffer.baseAddress,
+                          let rightPointer = rightBuffer.baseAddress,
+                          let bassPointer = bassBuffer.baseAddress else {
+                        return .silent
+                    }
+                    return render(
+                        frameCount: count,
                         sampleRate: sampleRate,
                         mode: mode,
-                        left: leftBuffer.baseAddress!,
-                        right: rightBuffer.baseAddress!,
-                        bass: bassBuffer.baseAddress!
+                        left: leftPointer,
+                        right: rightPointer,
+                        bass: bassPointer
                     )
                 }
             }
@@ -331,7 +337,7 @@ public struct GenerativeEngine {
         right: UnsafeMutablePointer<Float>,
         bass: UnsafeMutablePointer<Float>? = nil
     ) -> VisualEnergy {
-        let rate = max(sampleRate, 1)
+        let rate = (sampleRate.isFinite && sampleRate > 0) ? sampleRate : 48_000
         let dt = 1.0 / rate
         let warmth = parameters.warmth
         let density = parameters.density

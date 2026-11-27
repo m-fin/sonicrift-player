@@ -345,7 +345,7 @@ final class PlayerModel: ObservableObject {
     }
 
     private func beginCatalog(_ track: Track, present: Bool) {
-        guard let url = playbackURL(for: track) else {
+        guard let url = playbackURL(for: track), CatalogPlayability.canStart(url) else {
             statusMessage = track.isBundled
                 ? "The on-device demo couldn't be opened."
                 : "That track has no audio file on this iPhone yet."
