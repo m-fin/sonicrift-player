@@ -8,7 +8,8 @@ on:
 jobs:
   test:
     name: swift test
-    runs-on: ubuntu-latest
+    # ubuntu-latest is 26.04, which swift-actions/setup-swift@v2 does not support.
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
       - uses: swift-actions/setup-swift@v2
