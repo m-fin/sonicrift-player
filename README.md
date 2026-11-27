@@ -1,56 +1,115 @@
-# sonicrift
+# Matthew Finley Music Player
 
-Player for [sonicrift](https://soundcloud.com/sonicrift), Matthew Finley’s music project. He also goes by Frog. The name is always written **sonicrift**, in lowercase.
+Native SwiftUI player for Matthew Finley’s music. It runs on iPhone, iOS 17 and later, and it plays with no network on the first launch.
 
-Version 1 runs in a browser and in Expo Go. An iPhone build for TestFlight comes later, after the Apple Developer enrollment is active. See [TESTFLIGHT.md](TESTFLIGHT.md).
+The core catalog, queue, and generative audio math live in the `PlayerCore` Swift package, so `swift test` runs on Linux and macOS without UIKit. The iOS app, lock screen controls, and widgets are Xcode targets described by `project.yml`.
 
-## Run it
+## Listen on an iPhone 15 Pro
 
-You need Node.js 22.
-
-```bash
-npm install
-npm start
-```
-
-- **Web.** In the Expo terminal, press `w`, or run `npm run web`. Open the localhost URL it prints.
-- **Expo Go.** Install Expo Go for the same SDK (58) on a phone, then scan the QR code from `npm start`. The phone and the computer have to be on the same network.
+On a Mac with Xcode 15 or newer:
 
 ```bash
-npm test
-npm run typecheck
+brew install xcodegen
+xcodegen generate
+open MatthewFinleyMusicPlayer.xcodeproj
 ```
 
-No API keys, certificates, or account secrets belong in this repo.
+In Xcode, select the MatthewFinleyMusicPlayer target, open Signing & Capabilities, and choose your Apple team. The app group `group.com.matthewfinley.musicplayer` is already in the entitlements. Automatic signing creates it for the team the first time you build.
 
-## What you can do
+Plug in the iPhone 15 Pro, select it as the run destination, and press Run.
 
-- Home lists the public catalog, the newest drop from the last three weeks, and two offline placeholder tones.
-- Tap a track. It opens now playing, with play, pause, seek, previous, next, shuffle, and repeat. A mini player stays on the other tabs.
-- On the web, space toggles play and pause. The left and right arrow keys seek by five seconds.
-- Queue shows what plays next. Remove a track if you do not want to hear it.
-- Artist is a short bio, links, and the official SoundCloud embed.
-- Share sends the title and the SoundCloud link. In a browser without the share sheet, it copies the link instead.
+The same build from the command line, after the device is paired and a team is selected in the project:
 
-## Where the audio comes from
+```bash
+xcodegen generate
+xcodebuild \
+  -project MatthewFinleyMusicPlayer.xcodeproj \
+  -scheme MatthewFinleyMusicPlayer \
+  -destination 'platform=iOS,name=iPhone 15 Pro' \
+  -allowProvisioningUpdates \
+  -configuration Debug \
+  build
+```
 
-Tracks come from pluggable sources in `src/sources`.
+`xcodebuild` prints the `.app` path under DerivedData. Install that build with Xcode’s Run button, or with:
 
-1. **SoundCloud public feed** (Expo Go and other native builds). The app calls the official oEmbed endpoint for `https://soundcloud.com/sonicrift`, reads the user id from the official widget URL, and requests `https://feeds.soundcloud.com/users/soundcloud:users:{id}/sounds.rss`. Playback uses that feed’s public stream URL inside `expo-audio`, with lock screen controls. There is no SoundCloud client id and no OAuth token.
-2. **Public snapshot.** Browsers cannot read that RSS feed, because SoundCloud does not send an open CORS header. When the live feed fails, the app uses metadata captured on 2026-11-14 in `src/sources/soundcloud-snapshot.json`, including the public stream URLs, and plays those. The snapshot file itself contains no audio.
-3. **Official widget.** The artist page embeds `w.soundcloud.com/player`. If a stream does not start, now playing can open that same player for the track.
-4. **JSON manifest.** `src/sources/sample-manifest.json` is a sample. Every entry is marked `placeholder: true` and titled `PLACEHOLDER`. The files in `assets/audio` are short original tones synthesized for this app. They are not sonicrift releases. Set `EXPO_PUBLIC_TRACK_MANIFEST_URL` to an HTTPS JSON file with `"schema": "sonicrift.tracks/v1"` to add files you host.
+```bash
+xcrun devicectl device install app --device <DEVICE_UDID> <path-to-MatthewFinleyMusicPlayer.app>
+```
 
-Third-party audio is not queued. A title credited to another artist, or a description that says the recording belongs to someone else, is skipped. That includes uploads whose notes say “no copyright infringement intended.”
+No certificates, keys, or provisioning profiles belong in this repo. Signing stays on the Mac.
 
-## Stack
+## Tests
 
-Expo SDK 58, TypeScript, expo-router, and expo-audio. Bundle id `app.sonicrift.player`. The production EAS profile is `production` in `eas.json`. iOS background audio is configured for the later native build. Web and Expo Go do not need a dev client.
+```bash
+swift test --package-path PlayerCore
+```
+
+GitHub Actions runs that command on every pull request.
+
+## What’s in the app
+
+- **Library.** Latest drops, albums, favorites, downloads, and the full catalog. A download button stores a remote track under Application Support/OfflineAudio. The toolbar filter keeps only audio that is already on the phone.
+- **Moods.** Focus, Late Night, Sleep, Ambient, Driving, and Electronic.
+- **Generative.** A live synthesizer with Deep Focus, Warm Drift, Night Drive, Sleep Halo, and Microtonal Bloom. Density, warmth, tempo, drift, and New Seed change the piece. The bass stays mono and under 120 Hz. One audio session is active at a time, so catalog playback and generative playback do not run together.
+- **Queue.** Up Next can be reordered and removed. Shuffle and repeat (off, one, all) sit on the Now Playing sheet.
+- **Lock screen.** Playback uses `AVAudioSession` category `.playback`, with `MPNowPlayingInfoCenter` and `MPRemoteCommandCenter`. Background audio keeps playing while the phone is locked.
+- **Widgets.** Small and medium Home Screen widgets, plus Lock Screen accessories, read the shared app group and open `mfmusic://play/...` or `mfmusic://generative/...`.
+
+The four tracks in `App/Audio` are original pieces synthesized by `Scripts/render_demo_audio.py`. They are not commercial releases. Re-render them with:
+
+```bash
+python3 Scripts/render_demo_audio.py
+```
+
+## Catalog
+
+Tracks come from three places, in order:
+
+1. The bundled demo manifest, so the player always has something to play.
+2. An HTTPS JSON manifest. The default URL is `https://matthewfinley.org/music/manifest.json`. Change it in Library → link. The schema is `matthewfinley.tracks/v1`. The parser also accepts the previous player’s schema.
+3. The public SoundCloud RSS feed for the artist’s catalog. Titles credited to someone else, and notes that say the recording belongs to someone else, are not queued. If the live feed fails, a small metadata snapshot shipped with the app is used. The snapshot does not contain audio.
+
+A manifest entry looks like this:
+
+```json
+{
+  "schema": "matthewfinley.tracks/v1",
+  "tracks": [
+    {
+      "id": "amber-room",
+      "title": "Amber Room",
+      "artist": "Matthew Finley",
+      "album": "Studio Demos",
+      "placeholder": false,
+      "moods": ["Focus", "Ambient"],
+      "audioUrl": "https://example.com/amber-room.mp3",
+      "releasedAt": "2026-11-01T00:00:00Z",
+      "durationMs": 180000
+    }
+  ]
+}
+```
+
+`placeholder` is required. `audioUrl` may be an `https` file or `bundled:<name>` for a wav in the app bundle.
+
+## Layout
+
+| Path | What it is |
+| --- | --- |
+| `PlayerCore/` | Swift package. Catalog, queue, moods, offline metadata, generative DSP. |
+| `App/` | SwiftUI app, audio session, downloads, bundled audio. |
+| `Widgets/` | WidgetKit extension. |
+| `project.yml` | XcodeGen project. `xcodegen generate` writes `MatthewFinleyMusicPlayer.xcodeproj`. |
+
+Bundle ids: `com.matthewfinley.musicplayer` and `com.matthewfinley.musicplayer.widgets`. Deployment target iOS 17.0.
+
+## Legacy Expo client
+
+`src/` is the earlier Expo player. It still runs with Node.js 22 (`npm install`, `npm start`, `npm test`). The native app is the one to install on iPhone.
 
 ## License
 
-The player source code is [MIT](LICENSE), copyright 2026 Matthew Finley.
+Player source code is [MIT](LICENSE), copyright 2026 Matthew Finley.
 
-The sonicrift music tracks are not covered by that license. Recordings published as sonicrift, including those on SoundCloud, remain **all rights reserved**, copyright 2026 Matthew Finley. The MIT license does not grant any right to copy, perform, distribute, or adapt those recordings.
-
-The tones in `assets/audio` are original synthesized placeholders so the player runs offline. They are not sonicrift releases.
+Matthew Finley’s recordings are not covered by that license. They remain all rights reserved, copyright 2026 Matthew Finley. The synthesized demos in `App/Audio` are original pieces made for offline playback, not commercial releases.

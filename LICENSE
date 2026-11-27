@@ -24,11 +24,12 @@ Music
 
 The MIT License above applies to the source code of this player.
 
-It does not apply to the sonicrift music. The music tracks, including the
-recordings published at https://soundcloud.com/sonicrift, remain All Rights
-Reserved, copyright 2026 Matthew Finley. Nothing in this repository grants
-any right to copy, perform, distribute, sync, publicly play, or adapt those
-recordings.
+It does not apply to Matthew Finley's music. Recordings published by
+Matthew Finley, including the public catalog the player can stream, remain
+All Rights Reserved, copyright 2026 Matthew Finley. Nothing in this
+repository grants any right to copy, perform, distribute, sync, publicly
+play, or adapt those recordings.
 
-The short tones in assets/audio were synthesized so this player can run
-offline. They are not sonicrift releases.
+The short pieces in App/Audio, and the older tones in assets/audio, were
+synthesized so this player can run offline. They are original demos, not
+commercial releases.

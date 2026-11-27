@@ -46,3 +46,12 @@ example
 # local verification
 screenshot_*.png
 .playwright-mcp/
+
+# Swift package and generated Xcode project
+.build/
+.swiftpm/
+Package.resolved
+DerivedData/
+*.xcuserstate
+xcuserdata/
+MatthewFinleyMusicPlayer.xcodeproj/
