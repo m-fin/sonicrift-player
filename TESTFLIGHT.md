@@ -1,43 +1,34 @@
-# TestFlight
+# Install on iPhone
 
-Version 1 is meant to be run on the web and in Expo Go. TestFlight is later.
-
-Apple Developer Program enrollment for this project is an **Individual** account and it is **pending**. Nothing in this repo can be uploaded to TestFlight until that enrollment is active. Do not commit certificates, `.p8` keys, `.p12` files, provisioning profiles, or Expo tokens.
+The native app installs from Xcode onto a paired iPhone. TestFlight comes later, after the Apple Developer enrollment is active. Do not commit certificates, `.p8` keys, `.p12` files, or provisioning profiles.
 
 ## Identifiers
 
 | | |
 | --- | --- |
-| App name | sonicrift |
-| Bundle ID | `app.sonicrift.player` |
-| URL scheme | `sonicrift` |
-| EAS slug | `sonicrift` |
-| Production profile | `production` in `eas.json` (`distribution: store`, iOS, `autoIncrement`) |
+| App name | Matthew Finley Music Player |
+| Bundle ID | `com.matthewfinley.musicplayer` |
+| Widget bundle ID | `com.matthewfinley.musicplayer.widgets` |
+| App group | `group.com.matthewfinley.musicplayer` |
+| URL scheme | `mfmusic` |
+| Deployment target | iOS 17.0 |
 
-`eas.json` does not contain an Apple Team ID or an App Store Connect app id. Add those in the EAS project or a local untracked override after the developer account exists. Do not commit them if you treat them as private, and never commit signing material.
+Signing uses Automatic, with the team selected on the Mac. This repo does not store a team id.
 
-## When the Individual account is approved
+## Direct install
 
-1. Accept the Apple Developer agreement and finish enrollment.
-2. In [App Store Connect](https://appstoreconnect.apple.com), create an iOS app named sonicrift with bundle id `app.sonicrift.player`.
-3. On a trusted machine, `npx eas-cli@latest login`. Link the Expo project with `npx eas-cli@latest init` if it is not linked yet.
-4. `npx eas-cli@latest credentials --platform ios` and let EAS create the distribution certificate and provisioning profile.
-5. `npx eas-cli@latest build --platform ios --profile production`
-6. `npx eas-cli@latest submit --platform ios --profile production`
-7. Add internal testers in TestFlight.
+```bash
+brew install xcodegen
+xcodegen generate
+open MatthewFinleyMusicPlayer.xcodeproj
+```
 
-The production build is a store build. It installs through TestFlight, not as a sideload.
+Select the team, choose the iPhone 15 Pro as the destination, and press Run. The command-line equivalent is in the README.
 
-## What Frog still needs to provide
+## When a store build is possible
 
-- Approval of the Apple Developer Individual account.
-- The Apple Team ID, once the account exists.
-- The App Store Connect app Apple ID (`ascAppId`), after the app record exists.
-- The Expo account that should own the EAS project.
-- Optional: an HTTPS URL for a real track manifest (`EXPO_PUBLIC_TRACK_MANIFEST_URL`). Until then, the app uses the bundled sample manifest plus the public SoundCloud feed.
-- A decision on which public SoundCloud uploads stay in the RSS feed. The player drops third-party audio (titles credited to another artist, or descriptions that say the audio belongs to someone else).
-- A privacy policy URL if App Store Connect asks for one. The app has no account, no analytics, and no microphone permission.
+1. Finish Apple Developer enrollment and accept the agreement.
+2. In App Store Connect, create an iOS app named Matthew Finley Music Player with bundle id `com.matthewfinley.musicplayer`.
+3. Archive the Xcode scheme MatthewFinleyMusicPlayer and upload it with the Organizer.
 
-## Privacy
-
-The app reads SoundCloud’s public oEmbed endpoint and the public RSS feed for sonicrift. It does not use a SoundCloud client id, OAuth token, or undocumented API. Placeholder audio in the repo is original synthesized tones, not a copy of a release.
+The phone build does not need an account, analytics, or a microphone permission. Playback continues in the background because the audio background mode is on.

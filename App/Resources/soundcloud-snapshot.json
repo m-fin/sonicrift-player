@@ -1,0 +1,36 @@
+{
+  "capturedAt": "2026-11-14",
+  "note": "Public metadata snapshot of Matthew Finley's own tracks from the official SoundCloud RSS feed. Audio files are not included. Third-party audio that appeared in the feed is omitted. The app requests the live feed first and uses this snapshot only when that request fails.",
+  "tracks": [
+    {
+      "id": "tag:soundcloud,2010:tracks/2430434229",
+      "title": "Bionic Body",
+      "description": "A short electronic piece built from the Bionic Body Tracker scores. Made entirely with code.",
+      "permalink": "https://soundcloud.com/sonicrift/bionic-body",
+      "streamUrl": "https://feeds.soundcloud.com/stream/2430434229-sonicrift-bionic-body.mp3",
+      "artworkUrl": "https://i1.sndcdn.com/artworks-dJPsiey3G4jGXFHF-qWc3Mg-t3000x3000.jpg",
+      "releasedAt": "2026-11-01T21:17:25.000Z",
+      "durationMs": 108000
+    },
+    {
+      "id": "tag:soundcloud,2010:tracks/2418172863",
+      "title": "Machine Sleep",
+      "description": "Ten minutes of dim, resting-machine ambient for sleep or deep focus. Made entirely with code.",
+      "permalink": "https://soundcloud.com/sonicrift/machine-sleep",
+      "streamUrl": "https://feeds.soundcloud.com/stream/2418172863-sonicrift-machine-sleep.mp3",
+      "artworkUrl": "https://i1.sndcdn.com/artworks-ypSJXmocQp5WACAR-GAVzYA-t3000x3000.jpg",
+      "releasedAt": "2026-10-13T11:05:16.000Z",
+      "durationMs": 600000
+    },
+    {
+      "id": "tag:soundcloud,2010:tracks/2418172749",
+      "title": "Space Drift",
+      "description": "Ten minutes of calm, open-space ambient for focus or sleep. Made entirely with code.",
+      "permalink": "https://soundcloud.com/sonicrift/space-drift",
+      "streamUrl": "https://feeds.soundcloud.com/stream/2418172749-sonicrift-space-drift.mp3",
+      "artworkUrl": "https://i1.sndcdn.com/artworks-QeaHGBEGVvpXbsaA-xypASg-t3000x3000.jpg",
+      "releasedAt": "2026-10-13T11:04:41.000Z",
+      "durationMs": 600000
+    }
+  ]
+}

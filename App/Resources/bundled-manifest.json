@@ -1,0 +1,58 @@
+{
+  "schema": "matthewfinley.tracks/v1",
+  "note": "Original synthesized demos bundled with Matthew Finley Music Player so it plays with no network. These are not commercial releases.",
+  "tracks": [
+    {
+      "id": "amber-room",
+      "title": "Amber Room",
+      "artist": "Matthew Finley",
+      "album": "Studio Demos",
+      "placeholder": true,
+      "moods": ["Focus", "Ambient"],
+      "audioUrl": "bundled:amber-room",
+      "permalink": "https://matthewfinley.org",
+      "releasedAt": "2026-11-01T00:00:00Z",
+      "durationMs": 12000,
+      "note": "Original synthesized demo. Warm dorian pad for focus."
+    },
+    {
+      "id": "gold-hour",
+      "title": "Gold Hour",
+      "artist": "Matthew Finley",
+      "album": "Studio Demos",
+      "placeholder": true,
+      "moods": ["Late Night", "Driving"],
+      "audioUrl": "bundled:gold-hour",
+      "permalink": "https://matthewfinley.org",
+      "releasedAt": "2026-11-02T00:00:00Z",
+      "durationMs": 12000,
+      "note": "Original synthesized demo. Late light and a low pulse."
+    },
+    {
+      "id": "soft-circuit",
+      "title": "Soft Circuit",
+      "artist": "Matthew Finley",
+      "album": "Studio Demos",
+      "placeholder": true,
+      "moods": ["Electronic", "Focus"],
+      "audioUrl": "bundled:soft-circuit",
+      "permalink": "https://matthewfinley.org",
+      "releasedAt": "2026-11-03T00:00:00Z",
+      "durationMs": 12000,
+      "note": "Original synthesized demo. A gentle electronic sequence."
+    },
+    {
+      "id": "harbor-glass",
+      "title": "Harbor Glass",
+      "artist": "Matthew Finley",
+      "album": "Studio Demos",
+      "placeholder": true,
+      "moods": ["Sleep", "Ambient"],
+      "audioUrl": "bundled:harbor-glass",
+      "permalink": "https://matthewfinley.org",
+      "releasedAt": "2026-11-04T00:00:00Z",
+      "durationMs": 12000,
+      "note": "Original synthesized demo. Quiet major harmony for sleep."
+    }
+  ]
+}
